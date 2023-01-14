@@ -32,4 +32,7 @@ impl Cplx<f64> {
             im: 2.*self.re*self.im,
         }
     }
+    pub fn abs(&self) -> f64 {
+        self.sq_abs().sqrt()
+    }
 }
