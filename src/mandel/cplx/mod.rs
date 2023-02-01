@@ -24,6 +24,20 @@ impl<T: Copy + std::ops::Add<Output=T>> std::ops::Add<Cplx<T>> for Cplx<T> {
     type Output = Cplx<T>;
 }
 
+impl<T: Copy + std::ops::Neg<Output=T> + std::ops::Add<Output=T>> std::ops::Sub<Cplx<T>> for Cplx<T> {
+    fn sub(self, rhs: Cplx<T>) -> Self::Output {
+        self + (-rhs)
+    }
+    type Output = Cplx<T>;
+}
+
+impl<T: Copy + std::ops::Neg<Output=T>> std::ops::Neg for Cplx<T> {
+    fn neg(self) -> Self::Output {
+        Cplx{re:-self.re, im:-self.im}
+    }
+    type Output = Cplx<T>;
+}
+
 impl Cplx<f64> {
     pub fn square(&self) -> Cplx<f64> {
         // re*re-im*im, 2*re*im
