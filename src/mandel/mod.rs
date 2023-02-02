@@ -10,10 +10,10 @@ pub struct Mandel {
 
 impl Mandel {
     pub fn new(c: Cplx<f64>, n_max: usize) -> Self {
-        Mandel{c, n_max, n:-1.}
+        Mandel{c, n_max, n: f64::NAN}
     }
     pub fn new_empty() -> Self {
-        Mandel{c: Cplx::<f64>{re:0., im:0.}, n_max: 256, n: -1.}
+        Mandel{c: Cplx::<f64>{re:0., im:0.}, n_max: 256, n: f64::NAN}
     }
     #[inline]
     pub fn get_mandel(&self) -> usize {
@@ -28,18 +28,16 @@ impl Mandel {
     }
 
     #[inline]
-    pub fn is_done(&self) -> bool {
-        self.n >= 0.
-    }
-
-    //TEMP TRASH REMOVE
-    pub fn set_value(&mut self, x: f64) {
-        self.n = x;
+    pub fn get_finished(&self) -> Option<f64> {
+        if !self.n.is_nan() {
+            Some(self.n)
+        } else {
+            None
+        }
     }
 
     #[inline]
-    pub fn get_mandel_smooth(&mut self) -> f64 {
-        if self.n >= 0. {return self.n}
+    pub fn calculate_mandel_smooth(&mut self) {
         let mut z = self.c;
         const M: f64 = 10.;
         for i in 1..self.n_max {
@@ -49,15 +47,17 @@ impl Mandel {
             }
             z = z.square()+self.c;
         }
-        if self.n == -1. {return f64::INFINITY;}
-
-        // n - fast_log2(0.5*fast_ln(z.sq_abs()))
-        self.n - fast_log2(0.5*fast_ln(z.sq_abs()))
-        // N + 1 + 1/ln(p)*ln(ln(M)/ln(r)) //M = big escape value, p = power (2 here), r = radius at escape
-        // => N + 1 + log2(ln(M)/ln(r))
-        // => N + 1 + log2(ln(M)) - log2(ln(r)) //we can get rid of constants, they are just a shift
-        // => N - log2(ln(r))
-        // => N - log2(log2(r)/log2(e)) => N - log2(log2(r))
+        if self.n.is_nan() {
+            self.n = f64::INFINITY;
+        } else {
+            // n - fast_log2(0.5*fast_ln(z.sq_abs()))
+            self.n -= fast_log2(0.5*fast_ln(z.sq_abs()));
+            // N + 1 + 1/ln(p)*ln(ln(M)/ln(r)) //M = big escape value, p = power (2 here), r = radius at escape
+            // => N + 1 + log2(ln(M)/ln(r))
+            // => N + 1 + log2(ln(M)) - log2(ln(r)) //we can get rid of constants, they are just a shift
+            // => N - log2(ln(r))
+            // => N - log2(log2(r)/log2(e)) => N - log2(log2(r))
+        }
     }
 
     #[inline]
@@ -72,7 +72,7 @@ impl Mandel {
             }
             z = z.square()+c;
         }
-        if n == 0. {return f64::INFINITY;}
+        if n.is_nan() {return f64::INFINITY;}
     
         // n - fast_log2(0.5*fast_ln(z.sq_abs()))
         n - fast_log2(0.5*fast_ln(z.sq_abs()))
@@ -88,7 +88,7 @@ impl Mandel {
 
 
 #[inline]
-fn fast_log2(x: f64) -> f64 {
+pub fn fast_log2(x: f64) -> f64 {
     let l2 = (x.to_bits() >> 52 & 0x07FF) as i16 - 0x0400;
     let v = f64::from_bits(x.to_bits() &!(1<<62) | 0x3FF00000_00000000);
     let v = (-v/3. + 2.) * v -2./3.;
