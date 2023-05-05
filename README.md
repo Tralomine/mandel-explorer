@@ -7,10 +7,13 @@ bunch of functionality:
 Done:
  - smooth coloring
 
+Partially done
+ - multi threading
+ - anti aliasing
+ - shadows
+
 Todo
  - better display thing than this
- - anti aliasing
- - multi threading
  - big floats
  - user change coloring function, + log/sqrt colors
  - render image
