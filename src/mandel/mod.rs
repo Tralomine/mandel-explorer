@@ -5,7 +5,7 @@ use cplx::Cplx;
 pub struct Mandel {
     c: Cplx<f64>,
     n: f64,
-    zp: (f64, f64),
+    normal: Cplx<f64>,
     n_max: usize,
 }
 
@@ -14,7 +14,7 @@ impl Mandel {
         Mandel {
             c,
             n_max,
-            zp: (f64::NAN, f64::NAN),
+            normal: Cplx{re:f64::NAN, im:f64::NAN},
             n: f64::NAN,
         }
     }
@@ -22,7 +22,7 @@ impl Mandel {
         Mandel {
             c: Cplx::<f64> { re: 0., im: 0. },
             n_max: 256,
-            zp: (f64::NAN, f64::NAN),
+            normal: Cplx{re:f64::NAN, im:f64::NAN},
             n: f64::NAN,
         }
     }
@@ -48,9 +48,9 @@ impl Mandel {
     }
 
     #[inline]
-    pub fn get_shadow(&self) -> Option<(f64, f64)> {
+    pub fn get_shadow(&self) -> Option<Cplx<f64>> {
         if !self.n.is_nan() {
-            Some(self.zp)
+            Some(self.normal)
         } else {
             None
         }
@@ -60,11 +60,17 @@ impl Mandel {
     pub fn calculate_mandel_smooth(&mut self) {
         let mut z = self.c;
         const M: f64 = 32.;
+        let mut derivative = Cplx{re:1., im:0.};
         for i in 1..self.n_max {
             if z.sq_abs() >= M * M {
                 self.n = i as f64;
                 break;
             }
+            // if derivative.sq_abs() <= 0.00001 {
+            //     break;
+            // }
+            derivative = Cplx{re:(derivative.re*z.re-derivative.im*z.im)*2., im: (derivative.re*z.im+derivative.im*z.re)*2.}; // der = 2*z*der
+            // derivative = derivative*z*2f64;
             z = z.square() + self.c;
         }
         if self.n.is_nan() {
@@ -72,9 +78,11 @@ impl Mandel {
         } else {
 
             // n - fast_log2(0.5*fast_ln(z.sq_abs()))
-            self.n -= fast_log2(0.5 * fast_ln(z.sq_abs()));
-            // self.zp.0 -= self.n;
-            // self.zp.1 -= self.n;
+            self.normal = z/derivative;
+            self.normal = self.normal/self.normal.abs();
+
+            // self.n -= fast_log2(0.5 * fast_ln(z.sq_abs()));
+            self.n -= (0.5 * (z.sq_abs()).ln()).log2();
             // N + 1 + 1/ln(p)*ln(ln(M)/ln(r)) //M = big escape value, p = power (2 here), r = radius at escape
             // => N + 1 + log2(ln(M)/ln(r))
             // => N + 1 + log2(ln(M)) - log2(ln(r)) //we can get rid of constants, they are just a shift

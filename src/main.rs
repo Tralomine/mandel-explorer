@@ -2,6 +2,9 @@ use std::thread;
 use std::sync::mpsc;
 use std::time::{Instant, Duration};
 
+use std::f64::consts::SQRT_2;
+use std::f64::consts::PI;
+
 use sfml;
 use sfml::window::{Key, Event, mouse};
 use sfml::graphics::{Color, RenderTarget, Transformable};
@@ -13,7 +16,6 @@ use mandel::Mandel;
 
 // use mandel::big_float;
 
-const PI:f64 = 3.14159265358979323846264338397;
 pub mod colors;
 
 fn pos_to_cplx(x:i32, y:i32, config: &Config) -> cplx::Cplx<f64> {
@@ -122,7 +124,7 @@ fn process_events(app: &mut sfml::graphics::RenderWindow, config: &mut Config) {
                 config.size = (width as usize, height as usize);
                 // mandels = vec![vec![Mandel::new_empty();h*2];w*2];
                 config.redraw = true;
-                app.set_view(&sfml::graphics::View::from_rect(&sfml::graphics::FloatRect::new(0., 0., config.size.0 as f32,  config.size.1 as f32)));
+                app.set_view(&sfml::graphics::View::from_rect(sfml::graphics::FloatRect::new(0., 0., config.size.0 as f32,  config.size.1 as f32)));
             }
             Event::KeyPressed{code, ..} => {
                 match code {
@@ -214,71 +216,69 @@ fn main() {
         let mut vertices = Vec::with_capacity(config.size.0*config.size.1);
         for x in 0..config.size.0 {
             for y in 0..config.size.1 {
-                let mut darken = 0;
-                let mut n = 0.;
-                let mut check_pos = |x:usize, y:usize| {
+                let check_pos = |x:usize, y:usize| -> Color {
                     match mandels[x][y].get_finished() {
-                        Some(k) => if k.is_finite() {n += k} else {darken += 1}
-                        None => darken += 1
+                        Some(k) => {
+                            if k.is_finite() {
+                                let n = k;
+                                // let n = 0.5*mandel::fast_log2(n);
+                                let n = 0.5*n.sqrt() + 3.3;
+                                // let n = n/8.;
+                                // let p = n.fract();
+                                // let p2 = n2.fract();harassment
+                                // let p = p.powi(20);
+                                // let n = n.floor() + (p*2.);
+                                // let n = n + (p2*0.5);
+                                // let n = 20.*n;
+                                // hsv_to_rgb((n*8) as i64, 1., 1.)
+                                // let shadow = 128 + ((1.-p2)*128.) as u8;
+                                // let shadow2 = 192 + ((1.-p)*64.) as u8;
+                                // let shadow = (n*256.).abs() as u8;
+                                // let normal = {
+                                //     let mag = (ang.0*ang.0+ang.1*ang.1+1.).sqrt();
+                                //     (ang.0/mag, -ang.1/mag, 1./mag)
+                                // };
+                                // const light:(f64, f64, f64) = (0.707107, 0.707107, 1.);
+                                //l+2n.l×n
+                                let normal = mandels[x][y].get_shadow().unwrap();
+                                // double shad = (norm.x*dir.x + norm.y*dir.y + h) / (1+h);	// dot product with light vector, here light is at 45°, 1.5 height then rescaling to 0-1 (shadow /= 1+height)
+                                const H: f64 = 1.;
+                                let shadow = (-SQRT_2*normal.re + -SQRT_2*normal.im + H) / (1.+H);
+                                // let shadow = (256.*shadow) as u8;
+                                // let color = colors::hsv_to_rgb(n*32., 0.8, 0.8);
+                                // let color = colors::hsv_to_rgb(15.*n, 0.7, 0.8-p*0.5);
+                                let color = colors::mm_color(n);
+                                // let color = Color::WHITE;
+                                let color = color * colors::hsv_to_rgb(185., 0.1*(1.-shadow), 0.75+0.25*shadow);
+                                // let color = color * Color::rgb(shadow, shadow, shadow);
+                                // let color = color * Color::rgb(shadow2, shadow2, shadow2);
+                                color
+                            } else {
+                                Color::BLACK
+                            }
+                        },
+                        None => Color::BLACK
                     }
                 };
-                check_pos(x*2, y*2);
-                check_pos(x*2+1, y*2);
-                check_pos(x*2, y*2+1);
-                check_pos(x*2+1, y*2+1);
 
-                let ang = if darken == 0 {(
-                    mandels[x*2][y*2].get_finished().unwrap()-mandels[x*2+1][y*2+1].get_finished().unwrap(),
-                    mandels[x*2+1][y*2].get_finished().unwrap()-mandels[x*2][y*2+1].get_finished().unwrap()
-                )} else {(0., 0.)};
+                let c1 = check_pos(x*2, y*2);
+                let c2 = check_pos(x*2+1, y*2);
+                let c3 = check_pos(x*2, y*2+1);
+                let c4 = check_pos(x*2+1, y*2+1);
 
-                if darken < 4 {
-                    let n = n / (4.-darken as f64);
+                let color = Color {
+                    r: ((c1.r as u16 + c2.r as u16 + c3.r as u16 + c4.r as u16)/4) as u8,
+                    g: ((c1.g as u16 + c2.g as u16 + c3.g as u16 + c4.g as u16)/4) as u8,
+                    b: ((c1.b as u16 + c2.b as u16 + c3.b as u16 + c4.b as u16)/4) as u8,
+                    a: (255)
+                };
 
-                    // let n = 0.5*mandel::fast_log2(n);
-                    let n = 0.5*n.sqrt() + 3.3;
-                    // let n = n/8.;
-                    // let p = n.fract();
-                    // let p2 = n2.fract();harassment
-                    // let p = p.powi(20);
-                    // let n = n.floor() + (p*2.);
-                    // let n = n + (p2*0.5);
-                    // let n = 20.*n;
-                    // hsv_to_rgb((n*8) as i64, 1., 1.)
-                    // let shadow = 128 + ((1.-p2)*128.) as u8;
-                    // let shadow2 = 192 + ((1.-p)*64.) as u8;
-                    // let shadow = (n*256.).abs() as u8;
-                    // let normal = {
-                    //     let mag = (ang.0*ang.0+ang.1*ang.1+1.).sqrt();
-                    //     (ang.0/mag, -ang.1/mag, 1./mag)
-                    // };
-                    // const light:(f64, f64, f64) = (0.707107, 0.707107, 1.);
-                    //l+2n.l×n
-                    let slope = (ang.0*ang.0+ang.1*ang.1).sqrt().atan();
-                    let ang = ang.0.atan2(ang.1);
-                    let shadow = 0.5f64.cos()*slope.cos() + 0.5f64.sin()*slope.sin()*ang.cos();
-                    let shadow = (256.*shadow*shadow) as u8;
-                    // let color = colors::hsv_to_rgb(n*32., 0.8, 0.8);
-                    // let color = colors::hsv_to_rgb(15.*n, 0.7, 0.8-p*0.5);
-                    let color = colors::mm_color(n);
-                    // let color = Color::WHITE;
-                    let color = color * Color::rgb(shadow, shadow, shadow);
-                    // let color = color * Color::rgb(shadow2, shadow2, shadow2);
-                    let color = if darken == 0 {
-                        color
-                    } else {
-                        let dark = (4-darken)*64;
-                        color * Color::rgb(dark, dark, dark)
-                    };
-                    // if n.fract() <= 0.03 {Color::BLACK} else
-                    // let normal = 0.;
-                    let v = sfml::graphics::Vertex::new(
-                        Vector2f::new(x as f32, y as f32),
-                        color,
-                        Vector2f::new(0., 0.),
-                    );
-                    vertices.push(v);
-                }
+                let v = sfml::graphics::Vertex::new(
+                    Vector2f::new(x as f32, y as f32),
+                    color,
+                    Vector2f::new(0., 0.),
+                );
+                vertices.push(v);
             }
         }
 

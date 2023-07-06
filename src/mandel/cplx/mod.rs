@@ -34,6 +34,22 @@ impl<T: Copy + std::ops::Mul<Output = T>> std::ops::Mul<T> for Cplx<T>
     type Output = Cplx<T>;
 }
 
+impl<
+        T: Copy + std::ops::Add<Output = T> + std::ops::Sub<Output = T> + std::ops::Mul<Output = T> + std::ops::Div<Output = T>,
+    > std::ops::Div<Cplx<T>> for Cplx<T>
+{
+    fn div(self, rhs: Cplx<T>) -> Self::Output {
+        // a+bi / c+di == (a+bi)(c-di)/(c+di)(c-di) == ac+bd+(bc-ad)i/cc+dd
+        let ccdd = rhs.re*rhs.re+rhs.im*rhs.im;
+        Cplx {
+            re: (self.re * rhs.re + self.im * rhs.im)/ccdd,
+            im: (self.im * rhs.re - self.re * rhs.im )/ccdd,
+        }
+    }
+    type Output = Cplx<T>;
+}
+
+
 impl<T: Copy + std::ops::Div<Output = T>> std::ops::Div<T> for Cplx<T>
 {
     fn div(self, rhs: T) -> Self::Output {
