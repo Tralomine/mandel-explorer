@@ -59,6 +59,7 @@ impl Mandel {
     #[inline]
     pub fn calculate_mandel_smooth(&mut self) {
         let mut z = self.c;
+        // let mut z = Cplx{re:0.,im:0.};
         const M: f64 = 32.;
         let mut derivative = Cplx{re:1., im:0.};
         for i in 1..self.n_max {
@@ -69,8 +70,7 @@ impl Mandel {
             // if derivative.sq_abs() <= 0.00001 {
             //     break;
             // }
-            derivative = Cplx{re:(derivative.re*z.re-derivative.im*z.im)*2., im: (derivative.re*z.im+derivative.im*z.re)*2.}; // der = 2*z*der
-            // derivative = derivative*z*2f64;
+            derivative = derivative*z*2.;
             z = z.square() + self.c;
         }
         if self.n.is_nan() {
@@ -81,8 +81,8 @@ impl Mandel {
             self.normal = z/derivative;
             self.normal = self.normal/self.normal.abs();
 
-            // self.n -= fast_log2(0.5 * fast_ln(z.sq_abs()));
-            self.n -= (0.5 * (z.sq_abs()).ln()).log2();
+            self.n -= fast_log2(0.5 * fast_ln(z.sq_abs()));
+            // self.n -= (0.5 * (z.sq_abs()).ln()).log2();
             // N + 1 + 1/ln(p)*ln(ln(M)/ln(r)) //M = big escape value, p = power (2 here), r = radius at escape
             // => N + 1 + log2(ln(M)/ln(r))
             // => N + 1 + log2(ln(M)) - log2(ln(r)) //we can get rid of constants, they are just a shift

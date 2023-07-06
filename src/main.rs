@@ -3,12 +3,11 @@ use std::sync::mpsc;
 use std::time::{Instant, Duration};
 
 use std::f64::consts::SQRT_2;
-use std::f64::consts::PI;
+// use std::f64::consts::PI;
 
 use sfml;
 use sfml::window::{Key, Event, mouse};
-use sfml::graphics::{Color, RenderTarget, Transformable};
-use sfml::system::Vector2f;
+use sfml::graphics::{Image, Texture, Color, RenderTarget, Transformable, Rect, Sprite};
 
 pub mod mandel;
 use mandel::cplx::{self, Cplx};
@@ -88,7 +87,6 @@ struct Config {
     pub zoom: f64,
     pub offset: Cplx<f64>,
     pub iter_max: usize,
-    pub smooth: bool,
     pub redraw: bool,
     pub debug: bool,
 }
@@ -160,13 +158,56 @@ fn process_events(app: &mut sfml::graphics::RenderWindow, config: &mut Config) {
     }
 }
 
+#[inline]
+fn get_color(m: &Mandel) -> Color {
+    match m.get_finished() {
+        Some(k) => {
+            if k.is_finite() {
+                let n = k;
+                // let n = 0.5*mandel::fast_log2(n);
+                let n = 0.5*n.sqrt() + 3.3;
+                // let n = n/8.;
+                // let p = n.fract();
+                // let p2 = n2.fract();harassment
+                // let p = p.powi(20);
+                // let n = n.floor() + (p*2.);
+                // let n = n + (p2*0.5);
+                // let n = 20.*n;
+                // hsv_to_rgb((n*8) as i64, 1., 1.)
+                // let shadow = 128 + ((1.-p2)*128.) as u8;
+                // let shadow2 = 192 + ((1.-p)*64.) as u8;
+                // let shadow = (n*256.).abs() as u8;
+                // let normal = {
+                //     let mag = (ang.0*ang.0+ang.1*ang.1+1.).sqrt();
+                //     (ang.0/mag, -ang.1/mag, 1./mag)
+                // };
+                const LIGHT:(f64, f64, f64) = (-SQRT_2, -SQRT_2, 1.);
+                let normal = m.get_shadow().unwrap();
+                let shadow = (LIGHT.0*normal.re + LIGHT.1*normal.im + LIGHT.2) / (1.+LIGHT.2);
+                let shadow = colors::hsv_to_rgb(185., 0.1*(1.-shadow), 0.75+0.25*shadow);
+                // let color = colors::hsv_to_rgb(n*32., 0.8, 0.8);
+                // let color = colors::hsv_to_rgb(15.*n, 0.7, 0.8-p*0.5);
+                let color = colors::mm_color(n);
+                // let color = Color::WHITE;
+                let color = color * shadow;
+                // let color = color * Color::rgb(shadow, shadow, shadow);
+                // let color = color * Color::rgb(shadow2, shadow2, shadow2);
+                color
+            } else {
+                Color::BLACK
+            }
+        },
+        None => Color::BLACK
+    }
+
+}
+
 fn main() {
     let mut config: Config = Config{
         size: (640, 480),
         zoom: 0.25,
         offset: cplx::Cplx{re:-0.5,im:0.},
         iter_max: 256,
-        smooth: true,
         redraw: true,
         debug: true,
     };
@@ -179,7 +220,9 @@ fn main() {
     );
     app.set_position(sfml::system::Vector2i::new(0, 0));
 
-    let mut mandels = vec![vec![Mandel::new_empty();config.size.0*2];config.size.1*2];
+    // let mut mandels = vec![vec![Mandel::new_empty();config.size.0*2];config.size.1*2];
+
+    let mut pic = Image::new((config.size.0*2) as u32, (config.size.1*2) as u32);
 
     let fira = sfml::graphics::Font::from_file("fira.otf").unwrap();
 
@@ -189,13 +232,14 @@ fn main() {
     while app.is_open() {
         let frame_start = Instant::now();
         process_events(&mut app, &mut config);
-        
+
         if config.redraw {
             (tx_calc, rx_calc) = mpsc::channel();
             config.size.0 *= 2;
             config.size.1 *= 2;
-            mandels = vec![vec![Mandel::new_empty();config.size.0*2];config.size.1*2];
-            area(tx_calc.clone(), sfml::graphics::Rect::<usize>{left:0, top:0, width:config.size.0, height:config.size.1}, config);
+            // mandels = vec![vec![Mandel::new_empty();config.size.0];config.size.1];
+            pic = Image::new(config.size.0 as u32, config.size.1 as u32);
+            area(tx_calc.clone(), Rect{left:0, top:0, width:config.size.0, height:config.size.1}, config);
             config.size.0 /= 2;
             config.size.1 /= 2;
 
@@ -204,85 +248,24 @@ fn main() {
 
         loop {
             match rx_calc.try_recv() {
-                Ok((x, y, m)) => mandels[x][y] = m,
+                Ok((x, y, m)) => {
+                    // mandels[x][y] = m;
+                    unsafe {
+                        pic.set_pixel(x as u32, y as u32, get_color(&m));
+                    }
+                },
                 Err(_) => break,
             }
             if frame_start.elapsed() >= Duration::from_secs_f64(1./40.) {break;}
         }
 
-
         app.clear(Color::BLACK);
 
-        let mut vertices = Vec::with_capacity(config.size.0*config.size.1);
-        for x in 0..config.size.0 {
-            for y in 0..config.size.1 {
-                let check_pos = |x:usize, y:usize| -> Color {
-                    match mandels[x][y].get_finished() {
-                        Some(k) => {
-                            if k.is_finite() {
-                                let n = k;
-                                // let n = 0.5*mandel::fast_log2(n);
-                                let n = 0.5*n.sqrt() + 3.3;
-                                // let n = n/8.;
-                                // let p = n.fract();
-                                // let p2 = n2.fract();harassment
-                                // let p = p.powi(20);
-                                // let n = n.floor() + (p*2.);
-                                // let n = n + (p2*0.5);
-                                // let n = 20.*n;
-                                // hsv_to_rgb((n*8) as i64, 1., 1.)
-                                // let shadow = 128 + ((1.-p2)*128.) as u8;
-                                // let shadow2 = 192 + ((1.-p)*64.) as u8;
-                                // let shadow = (n*256.).abs() as u8;
-                                // let normal = {
-                                //     let mag = (ang.0*ang.0+ang.1*ang.1+1.).sqrt();
-                                //     (ang.0/mag, -ang.1/mag, 1./mag)
-                                // };
-                                // const light:(f64, f64, f64) = (0.707107, 0.707107, 1.);
-                                //l+2n.l×n
-                                let normal = mandels[x][y].get_shadow().unwrap();
-                                // double shad = (norm.x*dir.x + norm.y*dir.y + h) / (1+h);	// dot product with light vector, here light is at 45°, 1.5 height then rescaling to 0-1 (shadow /= 1+height)
-                                const H: f64 = 1.;
-                                let shadow = (-SQRT_2*normal.re + -SQRT_2*normal.im + H) / (1.+H);
-                                // let shadow = (256.*shadow) as u8;
-                                // let color = colors::hsv_to_rgb(n*32., 0.8, 0.8);
-                                // let color = colors::hsv_to_rgb(15.*n, 0.7, 0.8-p*0.5);
-                                let color = colors::mm_color(n);
-                                // let color = Color::WHITE;
-                                let color = color * colors::hsv_to_rgb(185., 0.1*(1.-shadow), 0.75+0.25*shadow);
-                                // let color = color * Color::rgb(shadow, shadow, shadow);
-                                // let color = color * Color::rgb(shadow2, shadow2, shadow2);
-                                color
-                            } else {
-                                Color::BLACK
-                            }
-                        },
-                        None => Color::BLACK
-                    }
-                };
-
-                let c1 = check_pos(x*2, y*2);
-                let c2 = check_pos(x*2+1, y*2);
-                let c3 = check_pos(x*2, y*2+1);
-                let c4 = check_pos(x*2+1, y*2+1);
-
-                let color = Color {
-                    r: ((c1.r as u16 + c2.r as u16 + c3.r as u16 + c4.r as u16)/4) as u8,
-                    g: ((c1.g as u16 + c2.g as u16 + c3.g as u16 + c4.g as u16)/4) as u8,
-                    b: ((c1.b as u16 + c2.b as u16 + c3.b as u16 + c4.b as u16)/4) as u8,
-                    a: (255)
-                };
-
-                let v = sfml::graphics::Vertex::new(
-                    Vector2f::new(x as f32, y as f32),
-                    color,
-                    Vector2f::new(0., 0.),
-                );
-                vertices.push(v);
-            }
-        }
-
-        app.draw_primitives(&vertices, sfml::graphics::PrimitiveType::POINTS, &sfml::graphics::RenderStates::default());
+        let mut texture = Texture::new().unwrap();
+        texture.load_from_image(&pic, Rect {left: 0, top: 0, width: (config.size.0*2) as i32, height: (config.size.1*2) as i32}).expect("msg");
+        let mut sprite = Sprite::with_texture(&texture);
+        sprite.scale((0.5, 0.5));
+        app.draw(&sprite);
 
         if config.debug {
             let txt = format!("pos: {} + {}i\nzoom: 2^{}\niter max: {}\n", config.offset.re, config.offset.im, config.zoom.log2(), config.iter_max);

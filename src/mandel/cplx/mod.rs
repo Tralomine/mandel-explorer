@@ -15,9 +15,10 @@ impl<
     > std::ops::Mul<Cplx<T>> for Cplx<T>
 {
     fn mul(self, rhs: Cplx<T>) -> Self::Output {
+        // a+ib * c+id == ac-bd + i(ad+bc)
         Cplx {
             re: self.re * rhs.re - self.im * rhs.im,
-            im: self.re * rhs.im + self.re * rhs.im,
+            im: self.re * rhs.im + self.im * rhs.re
         }
     }
     type Output = Cplx<T>;
@@ -28,7 +29,7 @@ impl<T: Copy + std::ops::Mul<Output = T>> std::ops::Mul<T> for Cplx<T>
     fn mul(self, rhs: T) -> Self::Output {
         Cplx {
             re: self.re * rhs,
-            im: self.re * rhs,
+            im: self.im * rhs,
         }
     }
     type Output = Cplx<T>;
