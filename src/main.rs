@@ -6,8 +6,9 @@ use std::f64::consts::SQRT_2;
 // use std::f64::consts::PI;
 
 use sfml;
+use sfml::system::Vector2f;
 use sfml::window::{Key, Event, mouse};
-use sfml::graphics::{Image, Texture, Color, RenderTarget, Transformable, Rect, Sprite};
+use sfml::graphics::{Color, Image, Rect, RectangleShape, RenderTarget, RenderTexture, Shape, Sprite, Texture, Transformable};
 
 pub mod mandel;
 use mandel::cplx::{self, Cplx};
@@ -25,6 +26,15 @@ fn pos_to_cplx(x:i32, y:i32, config: &Config) -> cplx::Cplx<f64> {
         im: ((y-config.size.1 as i32/2) as f64)/min/config.zoom,
     } + config.offset
 }
+
+fn cplx_to_pos(z:cplx::Cplx<f64>, config: &Config) -> Vector2f {
+    let min = std::cmp::min(config.size.0, config.size.1) as f64;
+    Vector2f{
+        x: ((z.re - config.offset.re)*config.zoom*min) as f32 + (config.size.0/2) as f32,
+        y: ((z.im - config.offset.im)*config.zoom*min) as f32 + (config.size.1/2) as f32,
+    }
+}
+
 
 fn area(tx: mpsc::Sender<(usize, usize, Mandel)>, rect: sfml::graphics::Rect<usize>, config: Config) {
     let tx = tx.clone();
@@ -89,6 +99,7 @@ struct Config {
     pub iter_max: usize,
     pub redraw: bool,
     pub debug: bool,
+    pub AA: usize,
 }
 
 fn process_events(app: &mut sfml::graphics::RenderWindow, config: &mut Config) {
@@ -161,14 +172,13 @@ fn process_events(app: &mut sfml::graphics::RenderWindow, config: &mut Config) {
 #[inline]
 fn get_color(m: &Mandel) -> Color {
     match m.get_finished() {
-        Some(k) => {
-            if k.is_finite() {
-                let n = k;
+        Some(n) => {
+            if n.is_finite() {
                 // let n = 0.5*mandel::fast_log2(n);
                 let n = 0.5*n.sqrt() + 3.3;
                 // let n = n/8.;
                 // let p = n.fract();
-                // let p2 = n2.fract();harassment
+                // let p2 = n2.fract();
                 // let p = p.powi(20);
                 // let n = n.floor() + (p*2.);
                 // let n = n + (p2*0.5);
@@ -177,14 +187,11 @@ fn get_color(m: &Mandel) -> Color {
                 // let shadow = 128 + ((1.-p2)*128.) as u8;
                 // let shadow2 = 192 + ((1.-p)*64.) as u8;
                 // let shadow = (n*256.).abs() as u8;
-                // let normal = {
-                //     let mag = (ang.0*ang.0+ang.1*ang.1+1.).sqrt();
-                //     (ang.0/mag, -ang.1/mag, 1./mag)
-                // };
                 const LIGHT:(f64, f64, f64) = (-SQRT_2, -SQRT_2, 1.);
                 let normal = m.get_shadow().unwrap();
                 let shadow = (LIGHT.0*normal.re + LIGHT.1*normal.im + LIGHT.2) / (1.+LIGHT.2);
-                let shadow = colors::hsv_to_rgb(185., 0.1*(1.-shadow), 0.75+0.25*shadow);
+                let shadow = colors::hsv_to_rgb(185., 0., 0.5+0.5*shadow);
+                // let shadow = colors::hsv_to_rgb(185., 0.1*(1.-shadow), 0.75+0.25*shadow);
                 // let color = colors::hsv_to_rgb(n*32., 0.8, 0.8);
                 // let color = colors::hsv_to_rgb(15.*n, 0.7, 0.8-p*0.5);
                 let color = colors::mm_color(n);
@@ -199,8 +206,32 @@ fn get_color(m: &Mandel) -> Color {
         },
         None => Color::BLACK
     }
-
 }
+
+fn get_bg(pic: Image, old: Config, config: &Config) -> Image {
+    // pic = Image::new((config.size.0*config.AA) as u32, (config.size.1*config.AA) as u32);
+
+    let scale = config.zoom/old.zoom;
+    let mut texture = Texture::new().unwrap();
+    texture.load_from_image(&pic, Rect {left: 0, top: 0, width: (config.size.0*config.AA) as i32, height: (config.size.1*config.AA) as i32}).expect("msg");
+    texture.set_smooth(true);
+    let mut sprite = Sprite::with_texture(&texture);
+    sprite.set_origin(((config.size.0*config.AA) as f32/2., (config.size.1*config.AA) as f32/2.));
+    // sprite.scale((1./config.AA as f32, 1./config.AA as f32));
+
+    sprite.set_position((cplx_to_pos(old.offset, &config).x*config.AA as f32, cplx_to_pos(old.offset, &config).y*config.AA as f32));
+    sprite.scale((scale as f32, scale as f32));
+
+    let mut bg = RenderTexture::new((config.size.0*config.AA) as u32, (config.size.1*config.AA) as u32).expect("rendertext");
+    bg.draw(&sprite);
+    let mut red = RectangleShape::new();
+    red.set_fill_color(Color { r: 255, g: 0, b: 0, a: 64 });
+    red.set_size(((config.size.0*config.AA) as f32, (config.size.1*config.AA) as f32));
+    bg.draw(&red);
+    bg.display();
+    bg.texture().copy_to_image().expect("text-to-pic")
+}
+
 
 fn main() {
     let mut config: Config = Config{
@@ -210,19 +241,23 @@ fn main() {
         iter_max: 256,
         redraw: true,
         debug: true,
+        AA: 2,
     };
+
+    let mut settings = sfml::window::ContextSettings::default();
+    settings.antialiasing_level = 8;
 
     let mut app = sfml::graphics::RenderWindow::new(
         sfml::window::VideoMode::desktop_mode(),
         "mandel",
         sfml::window::Style::NONE,
-        &sfml::window::ContextSettings::default()
+        &settings,
     );
     app.set_position(sfml::system::Vector2i::new(0, 0));
 
     // let mut mandels = vec![vec![Mandel::new_empty();config.size.0*2];config.size.1*2];
 
-    let mut pic = Image::new((config.size.0*2) as u32, (config.size.1*2) as u32);
+    let mut pic = Image::new((config.size.0*config.AA) as u32, (config.size.1*config.AA) as u32);
 
     let fira = sfml::graphics::Font::from_file("fira.otf").unwrap();
 
@@ -231,19 +266,39 @@ fn main() {
 
     while app.is_open() {
         let frame_start = Instant::now();
+        let old = config;
         process_events(&mut app, &mut config);
+        let debug_txt;
 
         if config.redraw {
-            (tx_calc, rx_calc) = mpsc::channel();
-            config.size.0 *= 2;
-            config.size.1 *= 2;
-            // mandels = vec![vec![Mandel::new_empty();config.size.0];config.size.1];
-            pic = Image::new(config.size.0 as u32, config.size.1 as u32);
-            area(tx_calc.clone(), Rect{left:0, top:0, width:config.size.0, height:config.size.1}, config);
-            config.size.0 /= 2;
-            config.size.1 /= 2;
-
             config.redraw = false;
+
+            (tx_calc, rx_calc) = mpsc::channel();
+            config.size.0 *= config.AA;
+            config.size.1 *= config.AA;
+            // mandels = vec![vec![Mandel::new_empty();config.size.0];config.size.1];
+            area(tx_calc.clone(), Rect{left:0, top:0, width:config.size.0, height:config.size.1}, config);
+            config.size.0 /= config.AA;
+            config.size.1 /= config.AA;
+
+            pic = get_bg(pic, old, &config);
+        }
+
+        let mut orbit: Vec<sfml::graphics::Vertex> = Vec::new();
+        //calculate orbit to show
+        {
+            let mouse_pos = sfml::window::mouse::desktop_position() - app.position();
+            let pos = pos_to_cplx(mouse_pos.x, mouse_pos.y, &config);
+            let mut z = pos;
+            debug_txt = format!("mouse pos: [{}, {}]", pos.re, pos.im);
+            const M: f64 = 32.;
+            for _ in 1..config.iter_max {
+                orbit.push(sfml::graphics::Vertex{position: cplx_to_pos(z, &config), color: sfml::graphics::Color::RED,tex_coords: Vector2f{x: 0.,y: 0.}});
+                if z.sq_abs() >= M * M {
+                    break;
+                }
+                z = z.square() + pos;
+            }
         }
 
         loop {
@@ -259,16 +314,20 @@ fn main() {
             if frame_start.elapsed() >= Duration::from_secs_f64(1./40.) {break;}
         }
 
+
         app.clear(Color::BLACK);
 
         let mut texture = Texture::new().unwrap();
-        texture.load_from_image(&pic, Rect {left: 0, top: 0, width: (config.size.0*2) as i32, height: (config.size.1*2) as i32}).expect("msg");
+        texture.load_from_image(&pic, Rect {left: 0, top: 0, width: (config.size.0*config.AA) as i32, height: (config.size.1*config.AA) as i32}).expect("msg");
+        texture.set_smooth(true);
         let mut sprite = Sprite::with_texture(&texture);
-        sprite.scale((0.5, 0.5));
+        sprite.scale((1./config.AA as f32, 1./config.AA as f32));
         app.draw(&sprite);
 
+        app.draw_primitives(&orbit, sfml::graphics::PrimitiveType::LINE_STRIP, &sfml::graphics::RenderStates::DEFAULT);
+
         if config.debug {
-            let txt = format!("pos: {} + {}i\nzoom: 2^{}\niter max: {}\n", config.offset.re, config.offset.im, config.zoom.log2(), config.iter_max);
+            let txt = format!("pos: {} + {}i\nzoom: 2^{}\niter max: {}\n{debug_txt}", config.offset.re, config.offset.im, config.zoom.log2(), config.iter_max);
 
             let mut text = sfml::graphics::Text::new(&txt, &fira, 24);
             text.set_outline_thickness(2.);
