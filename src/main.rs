@@ -99,7 +99,7 @@ struct Config {
     pub iter_max: usize,
     pub redraw: bool,
     pub debug: bool,
-    pub AA: usize,
+    pub aa: usize,
 }
 
 fn process_events(app: &mut sfml::graphics::RenderWindow, config: &mut Config) {
@@ -208,25 +208,25 @@ fn get_color(m: &Mandel) -> Color {
     }
 }
 
-fn get_bg(pic: Image, old: Config, config: &Config) -> Image {
+fn generate_bg(pic: Image, old: Config, config: &Config) -> Image {
     // pic = Image::new((config.size.0*config.AA) as u32, (config.size.1*config.AA) as u32);
 
     let scale = config.zoom/old.zoom;
     let mut texture = Texture::new().unwrap();
-    texture.load_from_image(&pic, Rect {left: 0, top: 0, width: (config.size.0*config.AA) as i32, height: (config.size.1*config.AA) as i32}).expect("msg");
+    texture.load_from_image(&pic, Rect {left: 0, top: 0, width: (config.size.0*config.aa) as i32, height: (config.size.1*config.aa) as i32}).expect("msg");
     texture.set_smooth(true);
     let mut sprite = Sprite::with_texture(&texture);
-    sprite.set_origin(((config.size.0*config.AA) as f32/2., (config.size.1*config.AA) as f32/2.));
+    sprite.set_origin(((config.size.0*config.aa) as f32/2., (config.size.1*config.aa) as f32/2.));
     // sprite.scale((1./config.AA as f32, 1./config.AA as f32));
 
-    sprite.set_position((cplx_to_pos(old.offset, &config).x*config.AA as f32, cplx_to_pos(old.offset, &config).y*config.AA as f32));
+    sprite.set_position((cplx_to_pos(old.offset, &config).x*config.aa as f32, cplx_to_pos(old.offset, &config).y*config.aa as f32));
     sprite.scale((scale as f32, scale as f32));
 
-    let mut bg = RenderTexture::new((config.size.0*config.AA) as u32, (config.size.1*config.AA) as u32).expect("rendertext");
+    let mut bg = RenderTexture::new((config.size.0*config.aa) as u32, (config.size.1*config.aa) as u32).expect("rendertext");
     bg.draw(&sprite);
     let mut red = RectangleShape::new();
     red.set_fill_color(Color { r: 255, g: 0, b: 0, a: 64 });
-    red.set_size(((config.size.0*config.AA) as f32, (config.size.1*config.AA) as f32));
+    red.set_size(((config.size.0*config.aa) as f32, (config.size.1*config.aa) as f32));
     bg.draw(&red);
     bg.display();
     bg.texture().copy_to_image().expect("text-to-pic")
@@ -241,7 +241,7 @@ fn main() {
         iter_max: 256,
         redraw: true,
         debug: true,
-        AA: 2,
+        aa: 2,
     };
 
     let mut settings = sfml::window::ContextSettings::default();
@@ -257,7 +257,7 @@ fn main() {
 
     // let mut mandels = vec![vec![Mandel::new_empty();config.size.0*2];config.size.1*2];
 
-    let mut pic = Image::new((config.size.0*config.AA) as u32, (config.size.1*config.AA) as u32);
+    let mut pic = Image::new((config.size.0*config.aa) as u32, (config.size.1*config.aa) as u32);
 
     let fira = sfml::graphics::Font::from_file("fira.otf").unwrap();
 
@@ -274,14 +274,14 @@ fn main() {
             config.redraw = false;
 
             (tx_calc, rx_calc) = mpsc::channel();
-            config.size.0 *= config.AA;
-            config.size.1 *= config.AA;
+            config.size.0 *= config.aa;
+            config.size.1 *= config.aa;
             // mandels = vec![vec![Mandel::new_empty();config.size.0];config.size.1];
             area(tx_calc.clone(), Rect{left:0, top:0, width:config.size.0, height:config.size.1}, config);
-            config.size.0 /= config.AA;
-            config.size.1 /= config.AA;
+            config.size.0 /= config.aa;
+            config.size.1 /= config.aa;
 
-            pic = get_bg(pic, old, &config);
+            pic = generate_bg(pic, old, &config);
         }
 
         let mut orbit: Vec<sfml::graphics::Vertex> = Vec::new();
@@ -318,10 +318,10 @@ fn main() {
         app.clear(Color::BLACK);
 
         let mut texture = Texture::new().unwrap();
-        texture.load_from_image(&pic, Rect {left: 0, top: 0, width: (config.size.0*config.AA) as i32, height: (config.size.1*config.AA) as i32}).expect("msg");
+        texture.load_from_image(&pic, Rect {left: 0, top: 0, width: (config.size.0*config.aa) as i32, height: (config.size.1*config.aa) as i32}).expect("msg");
         texture.set_smooth(true);
         let mut sprite = Sprite::with_texture(&texture);
-        sprite.scale((1./config.AA as f32, 1./config.AA as f32));
+        sprite.scale((1./config.aa as f32, 1./config.aa as f32));
         app.draw(&sprite);
 
         app.draw_primitives(&orbit, sfml::graphics::PrimitiveType::LINE_STRIP, &sfml::graphics::RenderStates::DEFAULT);
